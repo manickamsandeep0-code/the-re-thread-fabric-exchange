@@ -1,0 +1,7 @@
+{
+  "name": "The Re-Thread Fabric Exchange",
+  "description": "A hyper-local, peer-to-peer marketplace for textile waste (scraps, old clothes, yarn) to connect people with materials to local crafters and designers, promoting reuse.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
