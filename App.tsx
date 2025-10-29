@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { User } from './types';
-import { auth } from './services/firebaseService';
+import { authService } from './services/firebaseService';
 import MapView from './components/MapView';
 import NewListingForm from './components/NewListingForm';
 import IsoBoard from './components/IsoBoard';
@@ -17,7 +17,7 @@ const App = () => {
   const [currentView, setCurrentView] = useState<View>('map');
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(firebaseUser => {
+    const unsubscribe = authService.onAuthStateChanged(firebaseUser => {
       setUser(firebaseUser);
       setLoadingAuth(false);
     });
@@ -25,7 +25,7 @@ const App = () => {
   }, []);
 
   const handleSignOut = async () => {
-    await auth.signOut();
+    await authService.signOut();
     setUser(null);
   };
 

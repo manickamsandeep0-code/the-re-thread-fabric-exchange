@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { auth } from '../services/firebaseService';
+import { authService } from '../services/firebaseService';
 import type { User } from '../types';
 import Spinner from './Spinner';
 
@@ -9,8 +9,10 @@ interface AuthProps {
 }
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
-    const [email, setEmail] = useState('crafter@example.com');
-    const [password, setPassword] = useState('password');
+    const [isSignUp, setIsSignUp] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [displayName, setDisplayName] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -19,10 +21,24 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         setIsLoading(true);
         setError('');
         try {
-            const user = await auth.signIn(email, password);
+            const user = await authService.signIn(email, password);
             onLogin(user);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to sign in.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSignUp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError('');
+        try {
+            const user = await authService.signUp(email, password, displayName);
+            onLogin(user);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create account.');
         } finally {
             setIsLoading(false);
         }
@@ -36,11 +52,26 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         The Re-Thread Fabric Exchange
                     </h2>
                     <p className="mt-2 text-center text-sm text-gray-600">
-                        Sign in to your account
+                        {isSignUp ? 'Create a new account' : 'Sign in to your account'}
                     </p>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-                    <div className="rounded-md shadow-sm -space-y-px">
+                <form className="mt-8 space-y-6" onSubmit={isSignUp ? handleSignUp : handleLogin}>
+                    <div className="rounded-md shadow-sm space-y-3">
+                        {isSignUp && (
+                            <div>
+                                <label htmlFor="display-name" className="sr-only">Display Name</label>
+                                <input
+                                    id="display-name"
+                                    name="displayName"
+                                    type="text"
+                                    required
+                                    className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+                                    placeholder="Display Name"
+                                    value={displayName}
+                                    onChange={(e) => setDisplayName(e.target.value)}
+                                />
+                            </div>
+                        )}
                         <div>
                             <label htmlFor="email-address" className="sr-only">Email address</label>
                             <input
@@ -49,7 +80,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                                 type="email"
                                 autoComplete="email"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+                                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
                                 placeholder="Email address"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -61,10 +92,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                                 id="password"
                                 name="password"
                                 type="password"
-                                autoComplete="current-password"
+                                autoComplete={isSignUp ? "new-password" : "current-password"}
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
-                                placeholder="Password"
+                                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+                                placeholder="Password (min. 6 characters)"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                             />
@@ -77,10 +108,21 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                             disabled={isLoading}
                             className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:bg-teal-400"
                         >
-                            {isLoading ? <Spinner/> : 'Sign in'}
+                            {isLoading ? <Spinner/> : (isSignUp ? 'Create Account' : 'Sign in')}
                         </button>
                     </div>
-                     <p className="text-xs text-center text-gray-500">Use crafter@example.com or designer@example.com (any password).</p>
+                    <div className="text-center">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsSignUp(!isSignUp);
+                                setError('');
+                            }}
+                            className="text-sm text-teal-600 hover:text-teal-700"
+                        >
+                            {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

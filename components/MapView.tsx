@@ -1,38 +1,45 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import type { Listing, GeoPoint } from '../types';
 import { getNearbyListings } from '../services/firebaseService';
 import { geocode } from '../services/geoService';
 import { MapPinIcon, SearchIcon } from './icons';
 import Spinner from './Spinner';
 import { Category, ListingType, PostType } from '../types';
+import 'leaflet/dist/leaflet.css';
 
-// --- MOCK React-Leaflet Components ---
-// In a real project, you would `import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';`
-const MapContainer: React.FC<{center: [number, number], zoom: number, children: React.ReactNode, className?: string}> = ({ center, zoom, children, className }) => (
-    <div className={`relative bg-gray-200 border border-gray-300 rounded-lg overflow-hidden ${className}`} style={{ minHeight: '400px', backgroundImage: 'url(https://source.unsplash.com/random/1200x800?map)', backgroundSize: 'cover' }}>
-        <div className="absolute inset-0 bg-white/20 backdrop-blur-sm"></div>
-        <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-lg">
-            Map centered at [{center.join(', ')}] with zoom {zoom}
-        </div>
-        {children}
-    </div>
-);
-const TileLayer: React.FC<{url: string, attribution: string}> = () => null; // This is purely for props compatibility in the mock.
-const Marker: React.FC<{position: [number, number], children?: React.ReactNode, icon: React.ReactNode}> = ({ position, children, icon }) => {
-    // A very basic approximation of marker positioning.
-    const top = (90 - position[0]) / 180 * 100;
-    const left = (position[1] + 180) / 360 * 100;
-    return <div className="absolute" style={{ top: `${top}%`, left: `${left}%`, transform: 'translate(-50%, -100%)' }}>
-        {icon}
-        {children}
-    </div>
+// Fix Leaflet default marker icon issue with Webpack/Vite
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+// Custom icons for different listing types
+const createIcon = (color: string) => {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="background-color: ${color}; width: 25px; height: 25px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+    iconSize: [25, 25],
+    iconAnchor: [12, 24],
+  });
 };
-const Popup: React.FC<{children: React.ReactNode}> = ({ children }) => (
-    <div className="absolute bottom-full mb-2 w-64 bg-white rounded-lg shadow-xl p-2 z-10 hidden group-hover:block">
-      {children}
-    </div>
-);
-// --- END MOCK React-Leaflet Components ---
+
+const offerIcon = createIcon('#ef4444'); // red
+const requestIcon = createIcon('#2563eb'); // blue
+
+// Component to update map center when it changes
+const MapUpdater: React.FC<{ center: GeoPoint }> = ({ center }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    map.setView([center.latitude, center.longitude], map.getZoom());
+  }, [center, map]);
+  
+  return null;
+};
 
 
 const MapView = () => {
@@ -183,40 +190,44 @@ const MapView = () => {
                 <Spinner />
             </div>
         )}
-        <MapContainer center={[center.latitude, center.longitude]} zoom={13} className="h-[60vh] w-full">
+        <MapContainer 
+          center={[center.latitude, center.longitude]} 
+          zoom={13} 
+          style={{ height: '60vh', width: '100%' }}
+          className="rounded-lg"
+        >
+          <MapUpdater center={center} />
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
           {filteredListings.map(listing => (
-            <div key={listing.id} className="group">
-              <Marker 
-                position={[listing.location.latitude, listing.location.longitude]}
-                icon={<MapPinIcon className={`h-8 w-8 ${listing.postType === PostType.OFFER ? 'text-red-500' : 'text-blue-600'} drop-shadow-lg`} />}
-               >
-                <Popup>
-                    <div className="flex flex-col">
-                        <img src={listing.imageUrl} alt={listing.title} className="w-full h-32 object-cover rounded-t-md" />
-                        <div className="p-2">
-                          <h3 className="font-bold text-gray-800">{listing.title}</h3>
-                          <p className="text-sm text-gray-600">{listing.quantity}</p>
-                           {listing.postType === PostType.OFFER ? (
-                               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block ${
-                                   listing.listingType === ListingType.FREE ? 'bg-green-100 text-green-800' : 
-                                   listing.listingType === ListingType.SWAP ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                   {listing.listingType.toUpperCase()}
-                               </span>
-                           ) : (
-                               <span className="text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block bg-indigo-100 text-indigo-800">
-                                   REQUEST
-                               </span>
-                           )}
-                        </div>
-                    </div>
-                </Popup>
-              </Marker>
-            </div>
+            <Marker 
+              key={listing.id}
+              position={[listing.location.latitude, listing.location.longitude]}
+              icon={listing.postType === PostType.OFFER ? offerIcon : requestIcon}
+            >
+              <Popup>
+                <div className="flex flex-col" style={{ minWidth: '200px' }}>
+                  <img src={listing.imageUrl} alt={listing.title} className="w-full h-32 object-cover rounded-t-md" />
+                  <div className="p-2">
+                    <h3 className="font-bold text-gray-800">{listing.title}</h3>
+                    <p className="text-sm text-gray-600">{listing.quantity}</p>
+                    {listing.postType === PostType.OFFER ? (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block ${
+                        listing.listingType === ListingType.FREE ? 'bg-green-100 text-green-800' : 
+                        listing.listingType === ListingType.SWAP ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {listing.listingType.toUpperCase()}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block bg-indigo-100 text-indigo-800">
+                        REQUEST
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
           ))}
         </MapContainer>
         {!isLoading && filteredListings.length === 0 && (
