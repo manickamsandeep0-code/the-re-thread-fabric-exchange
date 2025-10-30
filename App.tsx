@@ -6,10 +6,11 @@ import MapView from './components/MapView';
 import NewListingForm from './components/NewListingForm';
 import IsoBoard from './components/IsoBoard';
 import Gallery from './components/Gallery';
+import Profile from './components/Profile';
 import Auth from './components/Auth';
 import { MapPinIcon, PlusCircleIcon, SearchIcon, ImageIcon } from './components/icons';
 
-type View = 'map' | 'newListing' | 'isoBoard' | 'gallery';
+type View = 'map' | 'newListing' | 'isoBoard' | 'gallery' | 'profile';
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -32,18 +33,23 @@ const App = () => {
   const renderView = () => {
     switch (currentView) {
       case 'map':
-        return <MapView />;
+        return <MapView user={user} />;
       case 'newListing':
         if (user) {
             return <NewListingForm user={user} onListingCreated={() => setCurrentView('map')} />;
         }
         return null;
       case 'isoBoard':
-        return <IsoBoard />;
+        return <IsoBoard user={user} />;
       case 'gallery':
         return <Gallery />;
+      case 'profile':
+        if (user) {
+          return <Profile user={user} />;
+        }
+        return null;
       default:
-        return <MapView />;
+        return <MapView user={user} />;
     }
   };
 
@@ -99,9 +105,13 @@ const App = () => {
                     <span className="hidden md:inline">New Listing</span>
                 </button>
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-teal-700">
-                      {user.displayName.charAt(0)}
-                    </div>
+                    <button 
+                      onClick={() => setCurrentView('profile')}
+                      className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center font-bold text-teal-700 hover:bg-teal-200 transition cursor-pointer"
+                      title="View Profile"
+                    >
+                      {user.displayName.charAt(0).toUpperCase()}
+                    </button>
                     <button onClick={handleSignOut} className="text-sm text-gray-600 hover:text-gray-900 hidden sm:inline">Sign Out</button>
                 </div>
               </div>

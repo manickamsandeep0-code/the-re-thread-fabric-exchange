@@ -1,14 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import type { Listing } from '../types';
-import { getNearbyListings } from '../services/firebaseService'; // We can reuse this service, just with a large radius
+import type { Listing, User } from '../types';
+import { getNearbyListings, getOrCreateConversation, sendMessage } from '../services/firebaseService';
 import Spinner from './Spinner';
 import { MessageCircleIcon, MapPinIcon } from './icons';
 
-const IsoBoard = () => {
+interface IsoBoardProps {
+  user?: User | null;
+}
+
+const IsoBoard: React.FC<IsoBoardProps> = ({ user }) => {
   const [requests, setRequests] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sendingMessageId, setSendingMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -74,10 +79,26 @@ const IsoBoard = () => {
                         <span>{request.locationName}</span>
                     </div>
                 </div>
-                <button className="w-full mt-4 py-2 px-4 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition flex items-center justify-center gap-2">
-                    <MessageCircleIcon className="h-5 w-5" />
-                    Can you help?
+                <button 
+                  onClick={() => handleHelp(request)}
+                  disabled={!user || sendingMessageId === request.id}
+                  className="w-full mt-4 py-2 px-4 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition flex items-center justify-center gap-2 disabled:bg-teal-300 disabled:cursor-not-allowed"
+                >
+                  {sendingMessageId === request.id ? (
+                    <>
+                      <Spinner />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircleIcon className="h-5 w-5" />
+                      Can you help?
+                    </>
+                  )}
                 </button>
+                {!user && (
+                  <p className="text-xs text-gray-500 text-center mt-2">Sign in to send messages</p>
+                )}
               </div>
             </div>
           ))}
@@ -85,6 +106,33 @@ const IsoBoard = () => {
       </div>
     </div>
   );
+  
+  async function handleHelp(request: Listing) {
+    if (!user) {
+      alert('Please sign in to send messages');
+      return;
+    }
+    
+    if (user.id === request.userId) {
+      alert('You cannot message yourself!');
+      return;
+    }
+    
+    setSendingMessageId(request.id);
+    
+    try {
+      const convoId = await getOrCreateConversation(user.id, request.userId);
+      await sendMessage(
+        convoId,
+        user.id,
+        `Hi, I can help with your request for: ${request.title}`
+      );
+      alert('Message sent! They will be able to see your message in their conversations.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to send message');
+    } finally {
+      setSendingMessageId(null);
+    }
+  }
 };
-
 export default IsoBoard;

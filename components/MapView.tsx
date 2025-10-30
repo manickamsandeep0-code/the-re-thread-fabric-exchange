@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import type { Listing, GeoPoint } from '../types';
-import { getNearbyListings } from '../services/firebaseService';
+import type { Listing, GeoPoint, User } from '../types';
+import { getNearbyListings, deleteListing } from '../services/firebaseService';
 import { geocode } from '../services/geoService';
 import { MapPinIcon, SearchIcon } from './icons';
 import Spinner from './Spinner';
@@ -41,8 +41,11 @@ const MapUpdater: React.FC<{ center: GeoPoint }> = ({ center }) => {
   return null;
 };
 
+interface MapViewProps {
+  user?: User | null;
+}
 
-const MapView = () => {
+const MapView: React.FC<MapViewProps> = ({ user }) => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [center, setCenter] = useState<GeoPoint>({ latitude: 51.5074, longitude: -0.1278 });
@@ -200,35 +203,65 @@ const MapView = () => {
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {filteredListings.map(listing => (
-            <Marker 
-              key={listing.id}
-              position={[listing.location.latitude, listing.location.longitude]}
-              icon={listing.postType === PostType.OFFER ? offerIcon : requestIcon}
-            >
-              <Popup>
-                <div className="flex flex-col" style={{ minWidth: '200px' }}>
-                  <img src={listing.imageUrl} alt={listing.title} className="w-full h-32 object-cover rounded-t-md" />
-                  <div className="p-2">
-                    <h3 className="font-bold text-gray-800">{listing.title}</h3>
-                    <p className="text-sm text-gray-600">{listing.quantity}</p>
-                    {listing.postType === PostType.OFFER ? (
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block ${
-                        listing.listingType === ListingType.FREE ? 'bg-green-100 text-green-800' : 
-                        listing.listingType === ListingType.SWAP ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {listing.listingType.toUpperCase()}
-                      </span>
-                    ) : (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block bg-indigo-100 text-indigo-800">
-                        REQUEST
-                      </span>
-                    )}
+          {filteredListings.map(listing => {
+            const isOwner = user && user.id === listing.userId;
+            
+            const handleDelete = async () => {
+              if (!window.confirm('Are you sure you want to delete this listing?')) return;
+              try {
+                await deleteListing(listing.id);
+                await fetchListings(center);
+              } catch (error) {
+                alert(error instanceof Error ? error.message : 'Failed to delete listing');
+              }
+            };
+            
+            return (
+              <Marker 
+                key={listing.id}
+                position={[listing.location.latitude, listing.location.longitude]}
+                icon={listing.postType === PostType.OFFER ? offerIcon : requestIcon}
+              >
+                <Popup>
+                  <div className="flex flex-col" style={{ minWidth: '200px' }}>
+                    <img src={listing.imageUrl} alt={listing.title} className="w-full h-32 object-cover rounded-t-md" />
+                    <div className="p-2">
+                      <h3 className="font-bold text-gray-800">{listing.title}</h3>
+                      <p className="text-sm text-gray-600">{listing.quantity}</p>
+                      {listing.postType === PostType.OFFER ? (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block ${
+                          listing.listingType === ListingType.FREE ? 'bg-green-100 text-green-800' : 
+                          listing.listingType === ListingType.SWAP ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {listing.listingType.toUpperCase()}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block bg-indigo-100 text-indigo-800">
+                          REQUEST
+                        </span>
+                      )}
+                      {isOwner && (
+                        <div className="flex gap-2 mt-2 pt-2 border-t border-gray-200">
+                          <button 
+                            onClick={() => alert('Edit functionality coming soon!')}
+                            className="flex-1 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={handleDelete}
+                            className="flex-1 text-sm text-red-600 hover:text-red-800 font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+                </Popup>
+              </Marker>
+            );
+          })}
         </MapContainer>
         {!isLoading && filteredListings.length === 0 && (
             <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-5 rounded-lg">

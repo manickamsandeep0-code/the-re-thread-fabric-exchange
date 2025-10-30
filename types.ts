@@ -54,3 +54,18 @@ export interface GalleryPost {
   user?: User;
   originalListingId?: string; // Optional link to the material source
 }
+
+export interface Conversation {
+  id: string;
+  participantIds: string[];
+  lastMessageText: string;
+  updatedAt: any; // Firestore Timestamp
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  text: string;
+  createdAt: any; // Firestore Timestamp
+}

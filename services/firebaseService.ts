@@ -8,7 +8,7 @@ import {
   updateProfile,
   type User as FirebaseUser
 } from 'firebase/auth';
-import { getFirestore, collection, addDoc, doc, getDoc, getDocs, query, where, Timestamp, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, doc, getDoc, getDocs, query, where, Timestamp, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { 
   getStorage, 
   ref, 
@@ -353,5 +353,186 @@ export const getGalleryPosts = async (): Promise<GalleryPost[]> => {
   } catch (error) {
     console.error('Error fetching gallery posts:', error);
     throw new Error('Failed to fetch gallery posts. Please try again.');
+  }
+};
+
+/**
+ * Get all listings for a specific user
+ * @param userId The user ID to fetch listings for
+ * @returns Promise that resolves to array of user's listings
+ */
+export const getListingsForUser = async (userId: string): Promise<Listing[]> => {
+  try {
+    console.log(`Fetching listings for user: ${userId}`);
+    
+    // Query listings where userId matches
+    const q = query(collection(db, 'listings'), where('userId', '==', userId));
+    const listingsSnapshot = await getDocs(q);
+    
+    const listings: Listing[] = [];
+    
+    for (const docSnapshot of listingsSnapshot.docs) {
+      const data = docSnapshot.data();
+      
+      // Fetch user data if needed
+      let user: User | undefined;
+      if (data.userId) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', data.userId));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            user = {
+              id: userDoc.id,
+              email: userData.email,
+              displayName: userData.displayName,
+            };
+          }
+        } catch (error) {
+          console.warn('Could not fetch user data for listing:', error);
+        }
+      }
+      
+      listings.push({
+        id: docSnapshot.id,
+        title: data.title,
+        description: data.description,
+        postType: data.postType,
+        listingType: data.listingType,
+        category: data.category,
+        quantity: data.quantity,
+        imageUrl: data.imageUrl,
+        userId: data.userId,
+        location: data.location,
+        locationName: data.locationName,
+        user,
+      });
+    }
+    
+    console.log(`Found ${listings.length} listings for user`);
+    return listings;
+  } catch (error) {
+    console.error('Error fetching user listings:', error);
+    throw new Error('Failed to fetch your listings. Please try again.');
+  }
+};
+
+/**
+ * Delete a listing from Firestore
+ * @param listingId The ID of the listing to delete
+ * @returns Promise that resolves when deletion is complete
+ */
+export const deleteListing = async (listingId: string): Promise<void> => {
+  try {
+    console.log(`Deleting listing: ${listingId}`);
+    await deleteDoc(doc(db, 'listings', listingId));
+    console.log('Listing deleted successfully');
+  } catch (error) {
+    console.error('Error deleting listing:', error);
+    throw new Error('Failed to delete listing. Please try again.');
+  }
+};
+
+/**
+ * Update a listing in Firestore
+ * @param listingId The ID of the listing to update
+ * @param data Partial listing data to update
+ * @returns Promise that resolves when update is complete
+ */
+export const updateListing = async (
+  listingId: string, 
+  data: Partial<Omit<Listing, 'id' | 'user'>>
+): Promise<void> => {
+  try {
+    console.log(`Updating listing: ${listingId}`);
+    const updateData: any = { ...data };
+    
+    // Add updated timestamp
+    updateData.updatedAt = Timestamp.now();
+    
+    await updateDoc(doc(db, 'listings', listingId), updateData);
+    console.log('Listing updated successfully');
+  } catch (error) {
+    console.error('Error updating listing:', error);
+    throw new Error('Failed to update listing. Please try again.');
+  }
+};
+
+// --- FIREBASE MESSAGING FUNCTIONS ---
+
+/**
+ * Get or create a conversation between two users
+ * @param user1Id First user ID
+ * @param user2Id Second user ID
+ * @returns Promise that resolves to the conversation ID
+ */
+export const getOrCreateConversation = async (user1Id: string, user2Id: string): Promise<string> => {
+  try {
+    console.log(`Getting or creating conversation between ${user1Id} and ${user2Id}`);
+    
+    // Query for existing conversation with user1
+    const q = query(
+      collection(db, 'conversations'),
+      where('participantIds', 'array-contains', user1Id)
+    );
+    
+    const conversationsSnapshot = await getDocs(q);
+    
+    // Find a conversation that also includes user2
+    for (const docSnapshot of conversationsSnapshot.docs) {
+      const data = docSnapshot.data();
+      if (data.participantIds.includes(user2Id)) {
+        console.log(`Found existing conversation: ${docSnapshot.id}`);
+        return docSnapshot.id;
+      }
+    }
+    
+    // No existing conversation found, create a new one
+    console.log('Creating new conversation');
+    const newConversation = await addDoc(collection(db, 'conversations'), {
+      participantIds: [user1Id, user2Id],
+      lastMessageText: '',
+      updatedAt: Timestamp.now(),
+    });
+    
+    console.log(`Created new conversation: ${newConversation.id}`);
+    return newConversation.id;
+  } catch (error) {
+    console.error('Error getting or creating conversation:', error);
+    throw new Error('Failed to start conversation. Please try again.');
+  }
+};
+
+/**
+ * Send a message in a conversation
+ * @param conversationId The conversation ID
+ * @param senderId The sender's user ID
+ * @param text The message text
+ * @returns Promise that resolves when message is sent
+ */
+export const sendMessage = async (
+  conversationId: string,
+  senderId: string,
+  text: string
+): Promise<void> => {
+  try {
+    console.log(`Sending message to conversation: ${conversationId}`);
+    
+    // Add message to messages subcollection
+    await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+      senderId,
+      text,
+      createdAt: Timestamp.now(),
+    });
+    
+    // Update conversation's last message and timestamp
+    await updateDoc(doc(db, 'conversations', conversationId), {
+      lastMessageText: text,
+      updatedAt: Timestamp.now(),
+    });
+    
+    console.log('Message sent successfully');
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw new Error('Failed to send message. Please try again.');
   }
 };
