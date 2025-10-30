@@ -1,4 +1,6 @@
 
+import { Timestamp } from 'firebase/firestore';
+
 export interface GeoPoint {
   latitude: number;
   longitude: number;
@@ -59,7 +61,11 @@ export interface Conversation {
   id: string;
   participantIds: string[];
   lastMessageText: string;
-  updatedAt: any; // Firestore Timestamp
+  updatedAt: Timestamp;
+}
+
+export interface ConversationWithUser extends Conversation {
+  participant: User; // The other user in the conversation
 }
 
 export interface Message {
@@ -67,5 +73,5 @@ export interface Message {
   conversationId: string;
   senderId: string;
   text: string;
-  createdAt: any; // Firestore Timestamp
+  createdAt: Timestamp;
 }

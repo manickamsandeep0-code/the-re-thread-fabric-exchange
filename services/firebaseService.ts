@@ -8,14 +8,14 @@ import {
   updateProfile,
   type User as FirebaseUser
 } from 'firebase/auth';
-import { getFirestore, collection, addDoc, doc, getDoc, getDocs, query, where, Timestamp, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, doc, getDoc, getDocs, query, where, Timestamp, setDoc, deleteDoc, updateDoc, orderBy } from 'firebase/firestore';
 import { 
   getStorage, 
   ref, 
   uploadBytes, 
   getDownloadURL 
 } from 'firebase/storage';
-import type { User, Listing, GalleryPost, GeoPoint } from '../types';
+import type { User, Listing, GalleryPost, GeoPoint, ConversationWithUser, Message } from '../types';
 import { PostType, ListingType, Category } from '../types';
 
 // Firebase configuration using Vite environment variables
@@ -417,6 +417,63 @@ export const getListingsForUser = async (userId: string): Promise<Listing[]> => 
 };
 
 /**
+ * Get a single listing by its ID
+ * @param listingId The ID of the listing to fetch
+ * @returns Promise that resolves to the listing
+ */
+export const getListingById = async (listingId: string): Promise<Listing> => {
+  try {
+    console.log(`Fetching listing: ${listingId}`);
+    
+    const listingDoc = await getDoc(doc(db, 'listings', listingId));
+    
+    if (!listingDoc.exists()) {
+      throw new Error('Listing not found');
+    }
+    
+    const data = listingDoc.data();
+    
+    // Fetch user data
+    let user: User | undefined;
+    if (data.userId) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', data.userId));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          user = {
+            id: userDoc.id,
+            email: userData.email,
+            displayName: userData.displayName,
+          };
+        }
+      } catch (error) {
+        console.warn('Could not fetch user data for listing:', error);
+      }
+    }
+    
+    const listing: Listing = {
+      id: listingDoc.id,
+      title: data.title,
+      description: data.description,
+      postType: data.postType,
+      listingType: data.listingType,
+      category: data.category,
+      quantity: data.quantity,
+      imageUrl: data.imageUrl,
+      userId: data.userId,
+      location: data.location,
+      locationName: data.locationName,
+      user,
+    };
+    
+    return listing;
+  } catch (error) {
+    console.error('Error fetching listing:', error);
+    throw new Error('Failed to fetch listing. Please try again.');
+  }
+};
+
+/**
  * Delete a listing from Firestore
  * @param listingId The ID of the listing to delete
  * @returns Promise that resolves when deletion is complete
@@ -534,5 +591,89 @@ export const sendMessage = async (
   } catch (error) {
     console.error('Error sending message:', error);
     throw new Error('Failed to send message. Please try again.');
+  }
+};
+
+/**
+ * Get all conversations for a user with participant details
+ * @param userId The user ID to get conversations for
+ * @returns Promise that resolves to an array of conversations with participant info
+ */
+export const getUserConversations = async (userId: string): Promise<ConversationWithUser[]> => {
+  try {
+    console.log(`Fetching conversations for user: ${userId}`);
+    
+    // Query conversations where user is a participant
+    const conversationsRef = collection(db, 'conversations');
+    const q = query(
+      conversationsRef,
+      where('participantIds', 'array-contains', userId),
+      orderBy('updatedAt', 'desc')
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    // For each conversation, fetch the other participant's details
+    const conversations: ConversationWithUser[] = await Promise.all(
+      snapshot.docs.map(async (docSnap) => {
+        const data = docSnap.data();
+        const otherUserId = data.participantIds.find((id: string) => id !== userId);
+        
+        // Fetch other user's details
+        const userDoc = await getDoc(doc(db, 'users', otherUserId));
+        const userData = userDoc.data();
+        
+        return {
+          id: docSnap.id,
+          participantIds: data.participantIds,
+          lastMessageText: data.lastMessageText,
+          updatedAt: data.updatedAt,
+          participant: {
+            id: userDoc.id,
+            email: userData?.email || '',
+            displayName: userData?.displayName || 'Unknown User',
+          },
+        } as ConversationWithUser;
+      })
+    );
+    
+    console.log(`Found ${conversations.length} conversations`);
+    return conversations;
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    throw new Error('Failed to load conversations. Please try again.');
+  }
+};
+
+/**
+ * Get all messages for a conversation
+ * @param conversationId The conversation ID
+ * @returns Promise that resolves to an array of messages ordered by timestamp
+ */
+export const getMessagesForConversation = async (conversationId: string): Promise<Message[]> => {
+  try {
+    console.log(`Fetching messages for conversation: ${conversationId}`);
+    
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const q = query(messagesRef, orderBy('createdAt', 'asc'));
+    
+    const snapshot = await getDocs(q);
+    
+    const messages: Message[] = snapshot.docs.map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        conversationId,
+        senderId: data.senderId,
+        text: data.text,
+        createdAt: data.createdAt,
+      } as Message;
+    });
+    
+    console.log(`Found ${messages.length} messages`);
+    return messages;
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    throw new Error('Failed to load messages. Please try again.');
   }
 };

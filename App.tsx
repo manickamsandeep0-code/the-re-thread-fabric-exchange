@@ -4,18 +4,21 @@ import type { User } from './types';
 import { authService } from './services/firebaseService';
 import MapView from './components/MapView';
 import NewListingForm from './components/NewListingForm';
+import EditListingForm from './components/EditListingForm';
 import IsoBoard from './components/IsoBoard';
 import Gallery from './components/Gallery';
 import Profile from './components/Profile';
+import MessagesView from './components/MessagesView';
 import Auth from './components/Auth';
-import { MapPinIcon, PlusCircleIcon, SearchIcon, ImageIcon } from './components/icons';
+import { MapPinIcon, PlusCircleIcon, SearchIcon, ImageIcon, MessageCircleIcon } from './components/icons';
 
-type View = 'map' | 'newListing' | 'isoBoard' | 'gallery' | 'profile';
+type View = 'map' | 'newListing' | 'isoBoard' | 'gallery' | 'profile' | 'editListing' | 'messages';
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [currentView, setCurrentView] = useState<View>('map');
+  const [editingListingId, setEditingListingId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = authService.onAuthStateChanged(firebaseUser => {
@@ -30,13 +33,28 @@ const App = () => {
     setUser(null);
   };
 
+  const handleEditListing = (listingId: string) => {
+    setEditingListingId(listingId);
+    setCurrentView('editListing');
+  };
+
+  const handleListingUpdated = () => {
+    setEditingListingId(null);
+    setCurrentView('map');
+  };
+
   const renderView = () => {
     switch (currentView) {
       case 'map':
-        return <MapView user={user} />;
+        return <MapView user={user} onEditListing={handleEditListing} />;
       case 'newListing':
         if (user) {
             return <NewListingForm user={user} onListingCreated={() => setCurrentView('map')} />;
+        }
+        return null;
+      case 'editListing':
+        if (user && editingListingId) {
+          return <EditListingForm user={user} listingId={editingListingId} onListingUpdated={handleListingUpdated} />;
         }
         return null;
       case 'isoBoard':
@@ -48,8 +66,13 @@ const App = () => {
           return <Profile user={user} />;
         }
         return null;
+      case 'messages':
+        if (user) {
+          return <MessagesView user={user} />;
+        }
+        return null;
       default:
-        return <MapView user={user} />;
+        return <MapView user={user} onEditListing={handleEditListing} />;
     }
   };
 
@@ -98,6 +121,7 @@ const App = () => {
                  <NavItem label="Map" icon={<MapPinIcon className="w-5 h-5"/>} view="map" isActive={currentView === 'map'} onClick={setCurrentView} />
                  <NavItem label="ISO Board" icon={<SearchIcon className="w-5 h-5"/>} view="isoBoard" isActive={currentView === 'isoBoard'} onClick={setCurrentView} />
                  <NavItem label="Gallery" icon={<ImageIcon className="w-5 h-5"/>} view="gallery" isActive={currentView === 'gallery'} onClick={setCurrentView} />
+                 <NavItem label="Messages" icon={<MessageCircleIcon className="w-5 h-5"/>} view="messages" isActive={currentView === 'messages'} onClick={setCurrentView} />
               </nav>
               <div className="border-l border-gray-200 pl-4 flex items-center gap-4">
                  <button onClick={() => setCurrentView('newListing')} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition shadow-sm">

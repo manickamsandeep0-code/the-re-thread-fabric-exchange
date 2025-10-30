@@ -43,9 +43,10 @@ const MapUpdater: React.FC<{ center: GeoPoint }> = ({ center }) => {
 
 interface MapViewProps {
   user?: User | null;
+  onEditListing?: (listingId: string) => void;
 }
 
-const MapView: React.FC<MapViewProps> = ({ user }) => {
+const MapView: React.FC<MapViewProps> = ({ user, onEditListing }) => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [center, setCenter] = useState<GeoPoint>({ latitude: 51.5074, longitude: -0.1278 });
@@ -243,7 +244,7 @@ const MapView: React.FC<MapViewProps> = ({ user }) => {
                       {isOwner && (
                         <div className="flex gap-2 mt-2 pt-2 border-t border-gray-200">
                           <button 
-                            onClick={() => alert('Edit functionality coming soon!')}
+                            onClick={() => onEditListing && onEditListing(listing.id)}
                             className="flex-1 text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
                             Edit
